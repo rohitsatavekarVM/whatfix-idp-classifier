@@ -1,0 +1,7 @@
+# Install after requirements.txt with:
+# python -m pip install --no-deps -r requirements-litellm.txt
+# These versions match the working environment but conflict with declared dependency ranges, so pip's strict resolver cannot install them together.
+litellm==1.83.8
+pytest==9.0.2
+sentence-transformers==2.5.1
+transformers==4.57.1

@@ -1,0 +1,102 @@
+# Curated runtime/test requirements for the IDP app.
+#
+# These pins match the working miniforge environment. Two packages in that
+# environment intentionally sit outside declared dependency ranges, so install
+# them after this file:
+#
+#   python -m pip install -r requirements.txt
+#   python -m pip install --no-deps -r requirements-litellm.txt
+#
+# Known resolver conflicts preserved from the working env:
+# - litellm==1.83.8 declares tokenizers==0.22.2, and transformers==4.57.1
+#   declares tokenizers>=0.22.0, while chromadb==0.5.23 requires
+#   tokenizers<=0.20.3.
+# - pytest-asyncio==0.23.6 declares pytest<9, while the working env uses
+#   pytest==9.0.2.
+
+# Core ML and AI frameworks
+torch==2.12.0
+torchvision==0.27.0
+huggingface-hub==0.36.2
+accelerate==1.0.1
+scikit-learn==1.7.2
+datasets==4.5.0
+
+# LangChain ecosystem
+langchain-chroma==0.2.3
+langchain-community==0.4.1
+langchain-core==1.4.0
+langchain-text-splitters==1.1.2
+
+# Web framework and server
+Quart==0.20.0
+quart-cors==0.7.0
+Flask==3.1.2
+Hypercorn==0.18.0
+
+# HTTP and API clients
+aiohttp==3.13.3
+httpx==0.28.1
+openai==2.24.0
+requests==2.34.2
+
+# Document processing
+docx2python==3.5.0
+pdf2image==1.17.0
+PyMuPDF==1.27.1
+pypdf==6.3.0
+PyPDF2==3.0.1
+pytesseract==0.3.13
+python-docx==1.2.0
+
+# Image processing
+pillow==11.3.0
+opencv-contrib-python-headless==4.10.0.84
+opencv-python-headless==4.10.0.84
+open_clip_torch==3.3.0
+
+# Data processing and utilities
+numpy==2.4.4
+openpyxl==3.1.2
+pandas==2.3.3
+pyarrow==23.0.0
+pydantic==2.12.5
+pydantic-settings==2.13.1
+pydantic_core==2.41.5
+
+# Text processing and parsing
+beautifulsoup4==4.14.3
+pyparsing==3.3.1
+regex==2026.2.28
+safetensors==0.7.0
+tiktoken==0.12.0
+tokenizers==0.20.3
+PyYAML==6.0.2
+
+# Progress and utilities
+fastuuid==0.14.0
+filelock==3.20.1
+fsspec==2025.10.0
+importlib_metadata==8.5.0
+Jinja2==3.1.6
+jsonschema==4.23.0
+packaging==24.2
+python-dateutil==2.9.0.post0
+python-dotenv==1.0.1
+scipy==1.17.0
+tqdm==4.67.3
+
+# Vector database
+chromadb==0.5.23
+rank-bm25==0.2.2
+
+# Andromeda / Agentify framework
+andromeda @ git+https://github.com/AI-Emerging-Tech/ET-Agentify.git@053e03877ac5d83659bf44551dac0877e7c0e11e
+pyeztrace==0.1.2
+
+# AWS integrations
+boto3==1.42.94
+
+# Test stack
+pytest-asyncio==0.23.6
+pytest-mock==3.15.1
