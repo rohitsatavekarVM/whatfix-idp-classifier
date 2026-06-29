@@ -1,0 +1,22 @@
+paths:
+  tesseract_cmd: "/usr/bin/tesseract"
+  results_dir: "results"
+  temp_dir: "temp_files"
+
+models:
+  primary_llm: "gpt-oss:20b"
+  secondary_llm: "llama3.1:8b"
+  fallback_llm: "gemma"
+  embedding: "text-embedding-3-small"
+
+providers:
+  default: "litellm"
+  embedding: "litellm"
+
+clustering:
+  enabled: true
+  strategy: "sequential_boundary_detection"
+  split_threshold: 0.62
+  review_threshold: 0.45
+  strong_split_protection_threshold: 0.80
+  minimum_group_confidence: 0.55

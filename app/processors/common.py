@@ -202,7 +202,7 @@ def run_tesseract_on_pages(s, ocr_pages):
     try:
         from app.helpers.config import TESSERACT_CMD
     except Exception:
-        from helpers.config import TESSERACT_CMD
+        from app.helpers.config import TESSERACT_CMD
 
     # Configure pytesseract tesseract_cmd robustly (env, config, or system)
     if TESSERACT_CMD:

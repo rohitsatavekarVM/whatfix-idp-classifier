@@ -31,9 +31,9 @@ try:
     from app.utils.parser import parse_llm_json
 except Exception:
     from helpers.document_config import DocumentTypeConfig
-    from helpers.prompt_builder import PromptBuilder
-    from helpers.config import PRIMARY_LLM, DEFAULT_PROVIDER, model_other_args
-    from utils.parser import parse_llm_json
+    from app.helpers.prompt_builder import PromptBuilder
+    from app.helpers.config import PRIMARY_LLM, DEFAULT_PROVIDER, model_other_args
+    from app.utils.parser import parse_llm_json
     try:
         from domain import (
             ClassificationResult as DomainClassificationResult,

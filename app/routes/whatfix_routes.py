@@ -15,6 +15,8 @@ whatfix_bp = Blueprint("whatfix", __name__)
 @whatfix_bp.route("/whatfix/upload", methods=["POST"])
 async def upload_document():
 
+    print("===== Upload endpoint called =====")
+
     if "file" not in (await request.files):
         return jsonify({"error": "No file uploaded"}), 400
 
@@ -31,7 +33,9 @@ async def upload_document():
 
     try:
         processor = WhatfixProcessor()
-        result = processor.process(temp_path)
+
+        # Await the async processor
+        result = await processor.process(temp_path)
 
         return jsonify(result), 200
 

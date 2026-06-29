@@ -1,8 +1,11 @@
 """Andromeda workflow-based document processor"""
+
 import os
+
 # Ensure headless-friendly matplotlib backend unless explicitly overridden
 if not os.environ.get("MPLBACKEND"):
     os.environ["MPLBACKEND"] = "Agg"
+
 import asyncio
 import inspect
 import logging
@@ -14,39 +17,32 @@ import shutil
 import multiprocessing
 import tempfile
 import re
-from typing import Any, Dict, List
 import base64
 import io
+
+from typing import Any, Dict, List
+
 from andromeda.config import ModelConfig
 from andromeda.utils import get_chat_model
 from andromeda import HumanMessage
 
-from .common import textract_extract_pages, combine_dicts, run_tesseract_on_pages
+from .common import (
+    textract_extract_pages,
+    combine_dicts,
+    run_tesseract_on_pages,
+)
 from .image_classifier import classify_image
 
 logger = logging.getLogger(__name__)
 
-try:
-except Exception:
-    grouping_page_coverage = None
-    claim_number_format_ok = None
-    result_integrity_minimum = None
-    key_info_judgee = None
-    compute_summary_coverage = None
-    doc_type_alignment_judge = None
-    doc_type_evidence_judge = None
-    key_info_schema_field_coverage = None
-
+# Optional WorkflowBuilder
 try:
     from andromeda.core.workflow import WorkflowBuilder
-except Exception:
+except ImportError:
     WorkflowBuilder = None
 
-try:
-    from app.helpers import andromeda_flow
-
-except Exception:
-    from helpers import andromeda_flow
+# Andromeda helper functions
+from app.helpers.document_classifier import predict_document_type
 
 
 async def andromeda_process_files(
@@ -56,30 +52,52 @@ async def andromeda_process_files(
     summarize: bool = True,
     session_id=None,
     context: Dict[str, Any] | None = None,
-    ):
-        """
-    Andromeda Workflow version of file processing.
-    Uses WorkflowBuilder to orchestrate steps and integrates andromeda_flow for LLM tasks.
-    Yields progress updates for the v3 Andromeda processing workflow.
+):
     """
-    if WorkflowBuilder is None:
-        raise ImportError("Andromeda WorkflowBuilder not available. Please install Andromeda.")
+    Andromeda workflow version of file processing.
 
-    # Initial yield
-    yield 10, 'Processing file', False, None, None, file_id
+    Uses WorkflowBuilder to orchestrate document processing and
+    andromeda_flow for LLM-powered document classification.
+
+    Yields:
+        progress,
+        message,
+        is_done,
+        result,
+        page_count,
+        file_id
+    """
+
+    print("===== Andromeda workflow started =====")
+
+    if WorkflowBuilder is None:
+        raise ImportError(
+            "Andromeda WorkflowBuilder not available."
+        )
+
+    # Initial progress
+    yield (
+        10,
+        "Processing file",
+        False,
+        None,
+        None,
+        file_id,
+    )
+
     await asyncio.sleep(0)
 
     state = {
-        "session_id": session_id, 
+        "session_id": session_id,
         "submission_context": context or {},
         "file_name": file_name,
         "file_path": file_path,
         "file_id": file_id,
         "page_count": 0,
+        "raw_pages": {},
         "extracted_text": [],
         "grouped_texts": [],
         "grouped_page_numbers": [],
-        "clustering": {},
         "predictions": [],
         "hl_types": [],
         "document_type": "OTHER",
@@ -92,28 +110,37 @@ async def andromeda_process_files(
         "integration_data": {},
         "integration_results": {},
         "group_pdf_paths": [],
-        "clustering": {"pass1": {}, "pass2": {}},
+        "clustering": {
+            "pass1": {},
+            "pass2": {},
+        },
         "deconflicted_fields": {},
         "deconfliction_log": {},
         "hitl_exceptions": [],
         "hitl_required": False,
         "specialized_agent_results": {},
-        "next_best_actions": {"enabled": False, "actions": []},
+        "next_best_actions": {
+            "enabled": False,
+            "actions": [],
+        },
         "input_processing_route": "unknown",
         "page_processing_modes": {},
         "digital_pages": [],
         "ocr_pages": [],
         "vision_pages": [],
-        "debug_visualize" : False,
+        "classified_images": [],
+        "debug_visualize": False,
         "result": None,
     }
 
-    _ctx: Dict[str, Any] = {"images": []}
+    _ctx: Dict[str, Any] = {
+        "images": [],
+    }
 
-    # Progress signalling helper (shared mutable holder + setter)
+    # Progress signalling helper
     yield_progress = [(None, None)]
-    
-    def _mark(progress: int, message: str) -> None:
+
+    def _mark(progress: int, message: str):
         yield_progress[0] = (progress, message)
 
     def _state_log_summary(s: Any) -> Dict[str, Any]:
@@ -642,37 +669,58 @@ async def andromeda_process_files(
         return s
 
     def step_predict_types(s: dict) -> dict:
-        """Predict document types for all groups"""
-        before_groups = _normalized_group_pages_for_log(s.get("grouped_page_numbers") or [])
-        state = andromeda_flow.predict_document_type(s)
-        _record_clustering_pass2_event(
-            state,
-            phase="predict_types",
-            action="classification_range_refinement",
-            before_groups=before_groups,
-        )
-        _mark(60, 'Summarizing')
+        """
+        Predict document type using the LLM classifier.
+        """
+
+        _mark(60, "Predicting document type")
+
+        state = predict_document_type(s)
+
         return state
+    
+    def step_save_results(s: dict) -> dict:
+        """
+        Final workflow step.
+        Builds the result consumed by IDPClassifier.
+        """
+
+        s["result"] = {
+            "file_name": s.get("file_name"),
+            "document_type": s.get("document_type", "UNKNOWN"),
+            "confidence": float(s.get("confidence", 0.0)),
+            "predictions": s.get("predictions", []),
+            "page_count": s.get("page_count", 0),
+            "input_processing_route": s.get("input_processing_route"),
+            "page_processing_modes": s.get("page_processing_modes", {}),
+            "digital_pages": s.get("digital_pages", []),
+            "ocr_pages": s.get("ocr_pages", []),
+            "vision_pages": s.get("vision_pages", []),
+            "extracted_text": s.get("extracted_text", []),
+        }
+
+        return s
 
     wf = WorkflowBuilder(name="WhatfixClassification")
     (
-        wf.start("detect_file_type") \
-            .run(...)
-        .then("parse_document") \
-            .run(...)
-        .then("filter_classification_candidates") \
-            .run(...)
-        .then("classify_images") \
-            .run(...)
-        .then("identify_input_processing") \
-            .run(...)
-        .then("process_vision_pages") \
-            .run(...)
-        .then("ocr_extract") \
-            .run(...)
-        .then("predict_types") \
-            .run(...)
-        .finish("predict_types")
+        wf.start("step_detect_file_type") \
+            .run(step_detect_file_type)
+        .then("step_parse_document") \
+            .run(step_parse_document)
+        .then("step_filter_classification_candidates") \
+            .run(step_filter_classification_candidates)
+        .then("step_classify_images") \
+            .run(step_classify_images)
+        .then("step_identify_input_processing") \
+            .run(step_identify_input_processing)
+        .then("step_process_vision_pages") \
+            .run(step_process_vision_pages)
+        .then("step_ocr_extract") \
+            .run(step_ocr_extract)
+        .then("step_predict_types") \
+            .run(step_predict_types)
+        .finish("step_save_results") \
+            .run(step_save_results)
     )
 
     try:
@@ -698,7 +746,8 @@ async def andromeda_process_files(
 
         result = {
             "file_name": partial_state.get("file_name"),
-            "document_type": partial_state.get("document_type"),
+            "document_type": partial_state.get("document_type", "UNKNOWN"),
+            "confidence": partial_state.get("confidence", 0.0),
             "predictions": partial_state.get("predictions"),
             "page_count": partial_state.get("page_count"),
             "input_processing_route": partial_state.get("input_processing_route"),
